@@ -1,5 +1,10 @@
-module github.com/Aarif123456/safegoroutines
+module github.com/aarif123456/safegoroutines
 
-go 1.19.0
+go 1.19
 
-require golang.org/x/tools v0.13.0 // indirect
+require golang.org/x/tools v0.13.0
+
+require (
+	golang.org/x/mod v0.12.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
+)
