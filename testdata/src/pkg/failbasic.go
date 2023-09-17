@@ -1,4 +1,4 @@
-package failbasic
+package pkg
 
 import (
 	. "fmt"

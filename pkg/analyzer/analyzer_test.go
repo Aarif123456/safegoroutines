@@ -16,5 +16,5 @@ func TestLinter(t *testing.T) {
 
 	// TODO: should this be table that explain the different cases
 	testdata := filepath.Join(filepath.Dir(filepath.Dir(wd)), "testdata")
-	analysistest.Run(t, testdata, NewAnalyzer(), "safe", "failbasic", "faildefer")
+	analysistest.Run(t, testdata, NewAnalyzer(), "pkg")
 }
