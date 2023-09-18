@@ -37,27 +37,35 @@ func run(pass *analysis.Pass) (any, error) {
 }
 
 func annotateSafeFunc(pass *analysis.Pass) error {
-	for _, file := range pass.Files {
-		for _, decl := range file.Decls {
-			fdecl, ok := decl.(*ast.FuncDecl)
-			if !ok || fdecl.Body == nil {
-				continue
-			}
-
-			if !doesFuncContainRecover(fdecl) {
-				continue
-			}
-
-			fmt.Printf("TODO: Adding safeFunc: %s\n", fdecl.Name)
-			fn := pass.TypesInfo.ObjectOf(fdecl.Name)
-			if fn == nil {
-				// Type information may be incomplete.
-				continue
-			}
-
-			pass.ExportObjectFact(fn, new(isSafe))
-		}
+	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	if !ok {
+		return fmt.Errorf("Expected inspect.Analyzer to be an *inspector.Inspector, but got %T", pass.ResultOf[inspect.Analyzer])
 	}
+
+	nodeFilter := []ast.Node{
+		(*ast.FuncDecl)(nil), /* Find Function */
+	}
+
+	inspector.Preorder(nodeFilter, func(node ast.Node) {
+		fdecl, ok := node.(*ast.FuncDecl)
+		if !ok || fdecl.Body == nil {
+			return
+		}
+
+		if !doesFuncContainRecover(fdecl) {
+			return
+		}
+
+		fn := pass.TypesInfo.ObjectOf(fdecl.Name)
+		if fn == nil {
+			// Type information may be incomplete.
+			fmt.Printf("Adding safeFunction failed :( %s\n", fdecl.Name)
+
+			return
+		}
+
+		pass.ExportObjectFact(fn, new(isSafe))
+	})
 
 	return nil
 }
@@ -73,14 +81,11 @@ func doesFuncContainRecover(fdecl *ast.FuncDecl) bool {
 				// TODO: should we force the recover the be at the top off the function?
 				ident, ok := fnLitNode.(*ast.Ident)
 				if !ok {
-					fmt.Printf("[doesFuncContainRecover] TODO: handle this type: %T\n", fnLitNode)
 					return true
 				}
 
 				// track recovery
 				hasRecover = hasRecover || ident.Name == "recover"
-				fmt.Printf("[doesFuncContainRecover] TODO: name: %s\n", ident.Name)
-				fmt.Printf("[doesFuncContainRecover] TODO: hasRecover: %t\n", hasRecover)
 				return false
 			})
 		// TODO: maybe check if it's just a bunch of function calls, and each function has a recover than the function is safe
@@ -89,12 +94,9 @@ func doesFuncContainRecover(fdecl *ast.FuncDecl) bool {
 		}
 
 		if hasRecover {
-			fmt.Printf("[doesFuncContainRecover] TODO: func has recover: %s\n", fdecl.Name)
 			return true
 		}
 	}
-
-	fmt.Printf("[doesFuncContainRecover] TODO: func does not have recover: %s\n", fdecl.Name)
 
 	return false
 }
@@ -116,16 +118,19 @@ func validateGoroutines(pass *analysis.Pass) error {
 		case *ast.FuncLit:
 			ast.Inspect(fn, func(fnLitNode ast.Node) bool {
 				// TODO: should we force the recover the be at the top off the function?
+
+				if _, ok := fnLitNode.(*ast.GoStmt); ok {
+					// Each Goroutine has it's recover handler, so we don't want to inspect it.
+					return false
+				}
+
 				ident, ok := fnLitNode.(*ast.Ident)
 				if !ok {
-					fmt.Printf("TODO: handle this type: %T\n", fnLitNode)
 					return true
 				}
 
 				// track recovery
 				hasRecover = hasRecover || ident.Name == "recover"
-				fmt.Printf("TODO: name: %s\n", ident.Name)
-				fmt.Printf("TODO: hasRecover: %t\n", hasRecover)
 				return false
 			})
 		case *ast.Ident:
@@ -137,7 +142,21 @@ func validateGoroutines(pass *analysis.Pass) error {
 
 			var fact isSafe
 			hasRecover = pass.ImportObjectFact(tFn, &fact)
-			fmt.Printf("TODO: Ident: %s, tFn: %s, hasRecover: %t\n", fn.Name, tFn, hasRecover)
+		case *ast.IndexExpr, *ast.IndexListExpr:
+			x := getIDFromIndexParam(fn)
+			id, _ := x.(*ast.Ident)
+			if id == nil {
+				break
+			}
+
+			tFn := pass.TypesInfo.ObjectOf(id)
+			if tFn == nil {
+				fmt.Printf("Missing function info: %s\n", id.Name)
+				break
+			}
+
+			var fact isSafe
+			hasRecover = pass.ImportObjectFact(tFn, &fact)
 		default:
 			fmt.Printf("Unknown type: %T\n", goStmt.Call.Fun)
 		}
