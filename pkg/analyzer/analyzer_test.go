@@ -14,7 +14,6 @@ func TestLinter(t *testing.T) {
 		t.Fatalf("Failed to get wd: %s", err)
 	}
 
-	// TODO: should this be table that explain the different cases
 	testdata := filepath.Join(filepath.Dir(filepath.Dir(wd)), "testdata")
 	analysistest.Run(t, testdata, NewAnalyzer(), "pkg")
 }
