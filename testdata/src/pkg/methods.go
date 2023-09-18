@@ -74,6 +74,16 @@ func safeFields() {
 	go myStruct{f: funcWithRecover}.f()
 
 	go struct{ f func() }{f: funcWithRecover}.f()
+
+	go struct {
+		f func()
+		g func()
+	}{funcWithRecover, potentiallyUnsafeCode}.f()
+
+	go struct {
+		f func()
+		g func()
+	}{f: potentiallyUnsafeCode, g: funcWithRecover}.g()
 }
 
 // TODO: fix test
