@@ -9,7 +9,7 @@ type someGenericInterface[T, S any] interface {
 func safeMethodInGenericInterface() {
 	go someGenericInterface[any, any](myGenericStruct[any, any]{}).safe()
 
-	go new(myGenericStruct[any, any]).safe()
+	go someGenericInterface[any, any](new(myGenericStruct[any, any])).safe()
 }
 
 // TODO: fix test
