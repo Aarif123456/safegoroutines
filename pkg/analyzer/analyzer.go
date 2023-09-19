@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/types"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -148,9 +149,7 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 			return false
 		}
 
-		var fact isSafeFact
-
-		return pass.ImportObjectFact(tfn, &fact)
+		return pass.ImportObjectFact(tfn, &isSafeFact{})
 	case *ast.IndexExpr, *ast.IndexListExpr:
 		x := getIDFromIndexParam(fn)
 		id, _ := x.(*ast.Ident)
@@ -164,12 +163,16 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 
 		if clit, ok := fn.X.(*ast.CompositeLit); ok {
 			if len(clit.Elts) == 0 {
-				return isFuncSafe(pass, id) // If we an empty composite literal, then the selector has to be a method.
+				return isFuncSafe(pass, id) // If we have an empty composite literal, then the selector has to be a method.
 			}
 
-			switch st := clit.Type.(type) {
-			case *ast.StructType:
-				// *ast.StructType is for anonymous struct declaration e.g. struct{ fieldName myType}{ k: v}
+			// We want to treat anonymous types the same as name type, so we get the underlying type
+			clType, ok := getUnderlyingType(pass, clit.Type)
+			if !ok {
+				return isFuncSafe(pass, id)
+			}
+			switch st := clType.(type) {
+			case *types.Struct:
 				switch structDecl := clit.Elts[0].(type) {
 				case *ast.KeyValueExpr:
 					// KeyValueExpr are structs declared in the following way
@@ -205,7 +208,7 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 
 				return isFuncSafe(pass, id)
 			default:
-				fmt.Errorf("Unhandled composite literal declaration %T\n", clit.Type)
+				fmt.Printf("Unhandled composite literal declaration %T\n", clit.Type)
 			}
 		}
 
@@ -216,12 +219,30 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 	}
 }
 
-func getMatchedFieldIndex(st *ast.StructType, id *ast.Ident) (int, bool) {
-	for i, fd := range st.Fields.List {
-		for _, fdID := range fd.Names {
-			if id.Name == fdID.Name {
-				return i, true
-			}
+func getUnderlyingType(pass *analysis.Pass, node ast.Expr) (types.Type, bool) {
+	if id, ok := node.(*ast.Ident); ok {
+		obj := pass.TypesInfo.ObjectOf(id)
+		if obj == nil {
+			fmt.Printf("Could not find type of composite literal: %q", id)
+			return nil, false
+		}
+
+		idTypeNamed, ok := obj.Type().(*types.Named)
+		if !ok {
+			panic(fmt.Sprintf("Expected named object to be named: %q, but got type %T", id, obj.Type()))
+		}
+
+		return idTypeNamed.Underlying(), true
+	}
+
+	return pass.TypesInfo.TypeOf(node), true
+}
+
+func getMatchedFieldIndex(st *types.Struct, id *ast.Ident) (int, bool) {
+	for i := 0; i < st.NumFields(); i++ {
+		fd := st.Field(i)
+		if id.Name == fd.Name() {
+			return i, true
 		}
 	}
 
