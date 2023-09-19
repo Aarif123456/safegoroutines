@@ -8,6 +8,10 @@ type myGenericStruct[T, S any] struct {
 	f func()
 }
 
+func newMyGenericStruct[T, S any]() *myGenericStruct[T, S] {
+	return &myGenericStruct[T, S]{}
+}
+
 func (m myGenericStruct[T, S]) safe() { // want safe:`isSafe`
 	defer func() {
 		if r := recover(); r != nil {
@@ -20,6 +24,10 @@ func (m myGenericStruct[T, S]) safe() { // want safe:`isSafe`
 
 func (m myGenericStruct[T, S]) unsafe() {
 	Println("This should fail because it has no recover")
+}
+
+func (m myGenericStruct[T, S]) clone() myGenericStruct[T, S] {
+	return m
 }
 
 // safeGenericMethod is a function that starts a Goroutine with safe generic methods.
