@@ -65,6 +65,7 @@ func annotateSafeFunc(pass *analysis.Pass) error {
 			return
 		}
 
+		fmt.Printf("[doesFuncContainRecover] REMOVEME: Added func: %q, %#v %T\ninner-recover-type: %#v\n", fdecl.Name, fdecl.Name, fdecl, fn)
 		pass.ExportObjectFact(fn, new(isSafeFact))
 	})
 
@@ -87,6 +88,7 @@ func doesFuncContainRecover(blckStmt *ast.BlockStmt) bool {
 				// TODO: should we force the recover the be at the top off the function?
 				ident, ok := fnLitNode.(*ast.Ident)
 				if !ok {
+					fmt.Printf("[doesFuncContainRecover] REMOVEME: handle this type: %T\n", fnLitNode)
 					return true
 				}
 
@@ -98,7 +100,11 @@ func doesFuncContainRecover(blckStmt *ast.BlockStmt) bool {
 			if hasRecover {
 				return true
 			}
-		// TODO: maybe check if it's just a bunch of function calls, and each function has a recover than the function is safe
+		// TODO: maybe check if it's just a bunch of function calls, and each function has a recover
+		// than the function is safe. Unless the preorder is topologically sorted, you won't able
+		// to handle cases where functions functions are composed of safeFunctions
+		// where a safe function is defined recursively. You could try iterate until some maxDepth
+		// or till functions are not getting marked as safe, but that might be overkill and too slow.
 		default:
 			fmt.Printf("[doesFuncContainRecover] Not handling type: %T\n", stmt)
 		}
@@ -149,6 +155,7 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 		}
 
 		if tFnFrom, ok := tFn.(*types.Var); ok {
+			fmt.Printf("REMOVEME tFnFrom.Origin()\n")
 			tFn = tFnFrom.Origin()
 		}
 
@@ -157,8 +164,11 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 			fmt.Printf("Ident did not map to function: %q, %T\n", fn.Name, tFn)
 		}
 
+		fmt.Printf("REMOVEME: Ident: %s; isSafeFact: %t, ident-inner: %#v\n", fn.Name, pass.ImportObjectFact(tFn, &isSafeFact{}), tFn)
+
 		return pass.ImportObjectFact(tFn, &isSafeFact{})
 	case *ast.IndexExpr, *ast.IndexListExpr:
+		fmt.Printf("REMOVEME index\n")
 		x := getIDFromIndexParam(fn)
 		id, _ := x.(*ast.Ident)
 		if id == nil {
@@ -169,15 +179,18 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 	case *ast.SelectorExpr:
 		id := fn.Sel
 
+		fmt.Printf("REMOVEME selector: expr type %#v, %T\n", fn, fn.X)
 		switch clit := fn.X.(type) {
 		case *ast.CompositeLit:
 			if len(clit.Elts) == 0 {
+				fmt.Printf("REMOVEME len(clit.Elts) == 0\n")
 				return isFuncSafe(pass, id) // If we have an empty composite literal, then the selector has to be a method.
 			}
 
 			// We want to treat anonymous types the same as name type, so we get the underlying type
 			clType, ok := getUnderlyingCompositeType(pass, clit)
 			if !ok {
+				fmt.Printf("REMOVEME getUnderlyingCompositeType(pass, clit.Type) failed\n")
 				return isFuncSafe(pass, id)
 			}
 			switch st := clType.(type) {
@@ -200,10 +213,14 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 						}
 
 						if kID.Name == id.Name {
+							fmt.Printf("REMOVEME: matched Key: %q\n", kID.Name)
 							return isFuncSafe(pass, elt.Value)
 						}
 					}
+
+					fmt.Printf("No key was matched with selector %q\n", id)
 				default:
+					fmt.Printf("REMOVEME composite lit default st-type: %T\n", st)
 					// The other type of struct declaration e.g.
 					// myStruct{ myValue, myOtherValue}
 					i, matched := getMatchedFieldIndex(st, id)
@@ -240,11 +257,15 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 				fmt.Printf("Unhandled call expression before selector: %q, %T\n", tClitFn.Underlying(), tClitFn.Underlying())
 			}
 		case *ast.Ident:
+			// This is supposed to catch method expression functions e.g. myStruct.safe(myStruct{})
+			// But, this needs to handle actual variables like v1.f()
+			// TODO: this is causing go v1.f() to be passed here, even v1.f has a function literal
 			return isFuncSafe(pass, id)
 		default:
 			fmt.Printf("Unknown CompositeLit type: %T\n", clit)
 		}
 
+		fmt.Printf("REMOVEME defaulting selector to identifier search: %q\n", id)
 		return isFuncSafe(pass, id)
 	default:
 		fmt.Printf("Unknown type: %T\n", fn)
