@@ -148,6 +148,10 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 			return false
 		}
 
+		if tFnFrom, ok := tFn.(*types.Var); ok {
+			tFn = tFnFrom.Origin()
+		}
+
 		tFn, ok := getFunctionOrigin(tFn)
 		if !ok {
 			fmt.Printf("Ident did not map to function: %q, %T\n", fn.Name, tFn)
