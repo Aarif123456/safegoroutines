@@ -23,31 +23,6 @@ func funcWithRecover() { // want funcWithRecover:`isSafe`
 	Println("This should pass because it has a recover")
 }
 
-// safeFunc starts a Goroutines with a safe functions.
-func safeFunc() {
-	go funcWithRecover()
-
-	// TODO: get this to pass
-	// go funcWithOnlySafeCalls()
-}
-
-// unsafeFunc starts a Goroutines with an unsafe functions.
-func unsafeFunc() {
-	go potentiallyUnsafeCode() // want `Goroutine should have a defer recover`
-
-	go funcWithMixedCalls() // want `Goroutine should have a defer recover`
-}
-
-// unsafeShadowedFunc is function that shadows a safe function with an unsafe function.
-func unsafeShadowedFunc() {
-	// We shadow a safe function with an unsafe function
-	safeFunc := func() {
-		potentiallyUnsafeCode()
-	}
-
-	go safeFunc() // want `Goroutine should have a defer recover`
-}
-
 // funcWithOnlySafeCalls is a function composed purely of safe function
 func funcWithOnlySafeCalls() {
 	funcWithRecover()
@@ -63,8 +38,19 @@ func funcWithMixedCalls() {
 	funcWithRecover()
 }
 
-func callToExternalPackge() {
-	go errors.New("some error") // want `Goroutine should have a defer recover`
+// safeFunc starts a Goroutines with a safe functions.
+func safeFunc() {
+	go funcWithRecover()
+
+	// TODO: get this to pass
+	// go funcWithOnlySafeCalls()
+}
+
+// unsafeFunc starts a Goroutines with an unsafe functions.
+func unsafeFunc() {
+	go potentiallyUnsafeCode() // want `Goroutine should have a defer recover`
+
+	go funcWithMixedCalls() // want `Goroutine should have a defer recover`
 }
 
 // TODO fix test
@@ -98,3 +84,17 @@ func callToExternalPackge() {
 
 // 	go potentiallyUnsafeCode()
 // }
+
+// unsafeShadowedFunc is function that shadows a safe function with an unsafe function.
+func unsafeShadowedFunc() {
+	// We shadow a safe function with an unsafe function
+	safeFunc := func() {
+		potentiallyUnsafeCode()
+	}
+
+	go safeFunc() // want `Goroutine should have a defer recover`
+}
+
+func callToExternalPackge() {
+	go errors.New("some error") // want `Goroutine should have a defer recover`
+}

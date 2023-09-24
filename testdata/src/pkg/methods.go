@@ -37,6 +37,13 @@ func safeMethod() {
 	go new(myStruct).safe()
 }
 
+// unsafeMethod is a function that starts a Goroutine with unsafe methods.
+func unsafeMethod() {
+	go myStruct{}.unsafe() // want `Goroutine should have a defer recover`
+
+	go new(myStruct).unsafe() // want `Goroutine should have a defer recover`
+}
+
 // TODO: fix test
 // safeMethodAssignment starts safe Goroutines from methods from structs initialized to a struct.
 // func safeMethodAssignment() {
@@ -46,13 +53,6 @@ func safeMethod() {
 // 	p := &myStruct{}
 // 	go p.safe()
 // }
-
-// unsafeMethod is a function that starts a Goroutine with unsafe methods.
-func unsafeMethod() {
-	go myStruct{}.unsafe() // want `Goroutine should have a defer recover`
-
-	go new(myStruct).unsafe() // want `Goroutine should have a defer recover`
-}
 
 // unsafeMethodAssignment starts unsafe Goroutines from methods from structs initialized to a variable.
 func unsafeMethodAssignment() {
@@ -94,6 +94,16 @@ func safeFields() {
 	}{f: potentiallyUnsafeCode, g: funcWithRecover}.g()
 }
 
+// unsafeFields is a function that starts a Goroutine with unsafe fields.
+func unsafeFields() {
+	go myStruct{f: potentiallyUnsafeCode}.f() // want `Goroutine should have a defer recover`
+	go myStruct{}.f()                         // want `Goroutine should have a defer recover`
+	go new(myStruct).f()                      // want `Goroutine should have a defer recover`
+
+	go struct{ f func() }{f: potentiallyUnsafeCode}.f() // want `Goroutine should have a defer recover`
+	go struct{ f func() }{}.f()                         // want `Goroutine should have a defer recover`
+}
+
 // TODO: fix test
 // safeFieldsAssignment is function that runs goroutines using the fields from structs initialized to
 // a variable.
@@ -104,16 +114,6 @@ func safeFields() {
 // 	p := &myStruct{f: funcWithRecover}
 // 	go p.f()
 // }
-
-// unsafeFields is a function that starts a Goroutine with unsafe fields.
-func unsafeFields() {
-	go myStruct{f: potentiallyUnsafeCode}.f() // want `Goroutine should have a defer recover`
-	go myStruct{}.f()                         // want `Goroutine should have a defer recover`
-	go new(myStruct).f()                      // want `Goroutine should have a defer recover`
-
-	go struct{ f func() }{f: potentiallyUnsafeCode}.f() // want `Goroutine should have a defer recover`
-	go struct{ f func() }{}.f()                         // want `Goroutine should have a defer recover`
-}
 
 // unsafeFieldsAssignment is a function that starts a Goroutine with unsafe fields from structs
 // initialized to a variable.

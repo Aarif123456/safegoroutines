@@ -31,6 +31,22 @@ func potentiallyUnsafeGenericFunc[T any]() {
 	Println("Some code that could potentially panic runs here...")
 }
 
+// genericFuncWithOnlySafeCalls is a function composed purely of safe function
+func genericFuncWithOnlySafeCalls[T any]() {
+	genericFunctionWithRecover[T]()
+	genericFunctionWithRecover[T]()
+	genericFunctionWithRecover[T]()
+	genericFunctionWithRecover[T]()
+	genericFunctionWithRecover[T]()
+}
+
+// genericFuncWithMixedCalls is a function that calls some potentially unsafe functions.
+func genericFuncWithMixedCalls[T any]() {
+	genericFunctionWithRecover[T]()
+	potentiallyUnsafeGenericFunc[T]()
+	genericFunctionWithRecover[T]()
+}
+
 // safeGenericFunc is a function that starts a Goroutine with a safe function.
 func safeGenericFunc() {
 	go genericFunctionWithRecover[any]()
@@ -71,20 +87,4 @@ func unsafeShadowedGenericFunc() {
 	}
 
 	go safeGenericFunc() // want `Goroutine should have a defer recover`
-}
-
-// genericFuncWithOnlySafeCalls is a function composed purely of safe function
-func genericFuncWithOnlySafeCalls[T any]() {
-	genericFunctionWithRecover[T]()
-	genericFunctionWithRecover[T]()
-	genericFunctionWithRecover[T]()
-	genericFunctionWithRecover[T]()
-	genericFunctionWithRecover[T]()
-}
-
-// genericFuncWithMixedCalls is a function that calls some potentially unsafe functions.
-func genericFuncWithMixedCalls[T any]() {
-	genericFunctionWithRecover[T]()
-	potentiallyUnsafeGenericFunc[T]()
-	genericFunctionWithRecover[T]()
 }

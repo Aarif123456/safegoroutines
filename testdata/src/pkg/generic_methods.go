@@ -38,6 +38,13 @@ func safeGenericMethod() {
 
 }
 
+// unsafeGenericMethod is a function that starts a Goroutine with unsafe generic methods.
+func unsafeGenericMethod() {
+	go myGenericStruct[any, any]{}.unsafe() // want `Goroutine should have a defer recover`
+
+	go new(myGenericStruct[any, any]).unsafe() // want `Goroutine should have a defer recover`
+}
+
 // safeGenericMethodAssignment starts safe Goroutines from a generic struct assigned to a variable.
 // func safeGenericMethodAssignment() {
 // 	v := myGenericStruct[any, any]{}
@@ -46,13 +53,6 @@ func safeGenericMethod() {
 // 	p := &myGenericStruct[any, any]{}
 // 	go p.safe()
 // }
-
-// unsafeGenericMethod is a function that starts a Goroutine with unsafe generic methods.
-func unsafeGenericMethod() {
-	go myGenericStruct[any, any]{}.unsafe() // want `Goroutine should have a defer recover`
-
-	go new(myGenericStruct[any, any]).unsafe() // want `Goroutine should have a defer recover`
-}
 
 // unsafeGenericMethodAssignment starts unsafe Goroutines from a generic struct assigned to a variable.
 func unsafeGenericMethodAssignment() {
@@ -69,6 +69,16 @@ func safeGenericFields() {
 	go struct{ f func() }{f: funcWithRecover}.f()
 }
 
+// unsafeGenericFields is a function that starts unsafe Goroutine using the fields in a generic struct.
+func unsafeGenericFields() {
+	go myGenericStruct[any, any]{f: potentiallyUnsafeCode}.f() // want `Goroutine should have a defer recover`
+	go myGenericStruct[any, any]{}.f()                         // want `Goroutine should have a defer recover`
+	go new(myGenericStruct[any, any]).f()                      // want `Goroutine should have a defer recover`
+
+	go struct{ f func() }{f: potentiallyUnsafeCode}.f() // want `Goroutine should have a defer recover`
+	go struct{ f func() }{}.f()                         // want `Goroutine should have a defer recover`
+}
+
 // TODO: fix test
 // safeGenericFieldsAssignment tarts safe Goroutines using the fields in a generic struct, where
 // the struct was assigned to a variable.
@@ -79,16 +89,6 @@ func safeGenericFields() {
 // 	p := &myGenericStruct[any, any]{f: funcWithRecover}
 // 	go p.f()
 // }
-
-// unsafeGenericFields is a function that starts unsafe Goroutine using the fields in a generic struct.
-func unsafeGenericFields() {
-	go myGenericStruct[any, any]{f: potentiallyUnsafeCode}.f() // want `Goroutine should have a defer recover`
-	go myGenericStruct[any, any]{}.f()                         // want `Goroutine should have a defer recover`
-	go new(myGenericStruct[any, any]).f()                      // want `Goroutine should have a defer recover`
-
-	go struct{ f func() }{f: potentiallyUnsafeCode}.f() // want `Goroutine should have a defer recover`
-	go struct{ f func() }{}.f()                         // want `Goroutine should have a defer recover`
-}
 
 // unsafeGenericFieldsAssignment starts unsafe Goroutine using the fields in a generic struct,
 // where the struct was assigned to a variable.

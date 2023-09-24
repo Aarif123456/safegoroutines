@@ -17,6 +17,13 @@ func safeFuncLiteral() {
 	}()
 }
 
+// unsafeFuncLiteral is a function that has a goroutine without a defer recover.
+func unsafeFuncLiteral() {
+	go func() { // want `Goroutine should have a defer recover`
+		potentiallyUnsafeCode()
+	}()
+}
+
 // safeFuncLiteralUntrackedRecoverValue is a function that has a goroutine with a recover, but
 // the recover value is not tracked.
 func safeFuncLiteralUntrackedRecoverValue() {
@@ -27,13 +34,6 @@ func safeFuncLiteralUntrackedRecoverValue() {
 		}()
 
 		Println("This should pass because it has a recover")
-	}()
-}
-
-// unsafeGoroutine is a function that has a goroutine without a defer recover.
-func unsafeGoroutine() {
-	go func() { // want `Goroutine should have a defer recover`
-		potentiallyUnsafeCode()
 	}()
 }
 

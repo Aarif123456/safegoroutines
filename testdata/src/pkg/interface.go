@@ -16,6 +16,13 @@ type someInterface interface {
 // 	go someInterface(new(myStruct)).safe()
 // }
 
+// unsafeMethodInInterface is a function that starts a Goroutine with unsafe methods.
+func unsafeMethodInInterface() {
+	go someInterface(myStruct{}).unsafe() // want `Goroutine should have a defer recover`
+
+	go someInterface(new(myStruct)).unsafe() // want `Goroutine should have a defer recover`
+}
+
 // Fix test
 // safeMethodInInterfaceAssignment starts safe Goroutines from structs casted to a interface.
 // func safeMethodInInterfaceAssignment() {
@@ -25,13 +32,6 @@ type someInterface interface {
 // 	p := someInterface(&myStruct{})
 // 	go p.safe()
 // }
-
-// unsafeMethodInInterface is a function that starts a Goroutine with unsafe methods.
-func unsafeMethodInInterface() {
-	go someInterface(myStruct{}).unsafe() // want `Goroutine should have a defer recover`
-
-	go someInterface(new(myStruct)).unsafe() // want `Goroutine should have a defer recover`
-}
 
 // unsafeMethodInInterfaceAssignment is a function that starts a Goroutine with unsafe methods.
 func unsafeMethodInInterfaceAssignment() {
