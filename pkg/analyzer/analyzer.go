@@ -172,7 +172,7 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 			}
 
 			// We want to treat anonymous types the same as name type, so we get the underlying type
-			clType, ok := getUnderlyingType(pass, clit.Type)
+			clType, ok := getUnderlyingCompositeType(pass, clit)
 			if !ok {
 				return isFuncSafe(pass, id)
 			}
@@ -212,9 +212,9 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 				}
 
 				return isFuncSafe(pass, id)
-			// TODO: handle slices and maps
+			// TODO: handle slices, array and maps
 			default:
-				fmt.Printf("Unhandled composite literal declaration %T\n", clit.Type)
+				fmt.Printf("Unhandled composite literal declaration %T\n", clType)
 			}
 		case *ast.CallExpr:
 			tClitFn, ok := pass.TypesInfo.TypeOf(clit.Fun).(*types.Named)
@@ -248,23 +248,40 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 	}
 }
 
-func getUnderlyingType(pass *analysis.Pass, node ast.Expr) (types.Type, bool) {
-	if id, ok := node.(*ast.Ident); ok {
-		obj := pass.TypesInfo.ObjectOf(id)
-		if obj == nil {
-			fmt.Printf("Could not find type of composite literal: %q", id)
-			return nil, false
-		}
+// getUnderlyingCompositeType gets the underlying type associated with the [composite declaration].
+// For example, for a struct e.g struct{}{}, myStructType{}, &myStruct{}, it'll return *types.Struct.
+// The returned type must be either struct, array, slice, or map type
+//
+// [composite declaration]: https://go.dev/ref/spec#Composite_literals
+func getUnderlyingCompositeType(pass *analysis.Pass, clit *ast.CompositeLit) (types.Type, bool) {
+	node := clit.Type
 
-		idTypeNamed, ok := obj.Type().(*types.Named)
-		if !ok {
-			panic(fmt.Sprintf("Expected named object to be named: %q, but got type %T", id, obj.Type()))
-		}
-
-		return idTypeNamed.Underlying(), true
+	out := pass.TypesInfo.TypeOf(node)
+	if out == nil {
+		fmt.Printf("Could not find type of composite literal: %q", node)
+		return nil, false
 	}
 
-	return pass.TypesInfo.TypeOf(node), true
+	for {
+		switch cur := out.(type) {
+		default:
+			fmt.Printf("getUnderlyingCompositeType returns invalid value %T", out)
+			return out, false
+		case *types.Struct, *types.Array, *types.Slice, *types.Map:
+			return out, true
+		case *types.Named:
+			for cur.Origin() != nil && cur.Origin() != cur {
+				// TODO: do I need this to get to the generic function original definition?
+				// Also, what other cases am I handling by accident?
+				cur = cur.Origin()
+			}
+
+			out = cur.Underlying()
+			for out.Underlying() != nil && out.Underlying() != out {
+				out = out.Underlying()
+			}
+		}
+	}
 }
 
 func getMatchedFieldIndex(st *types.Struct, id *ast.Ident) (int, bool) {
