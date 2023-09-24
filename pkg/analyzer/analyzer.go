@@ -142,14 +142,18 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 	case *ast.FuncLit:
 		return doesFuncContainRecover(fn.Body)
 	case *ast.Ident:
-
-		tfn := pass.TypesInfo.ObjectOf(fn)
-		if tfn == nil {
+		tFn := pass.TypesInfo.ObjectOf(fn)
+		if tFn == nil {
 			fmt.Printf("Missing function info: %s\n", fn.Name)
 			return false
 		}
 
-		return pass.ImportObjectFact(tfn, &isSafeFact{})
+		tFn, ok := getFunctionOrigin(tFn)
+		if !ok {
+			fmt.Printf("Ident did not map to function: %q, %T\n", fn.Name, tFn)
+		}
+
+		return pass.ImportObjectFact(tFn, &isSafeFact{})
 	case *ast.IndexExpr, *ast.IndexListExpr:
 		x := getIDFromIndexParam(fn)
 		id, _ := x.(*ast.Ident)
@@ -161,7 +165,8 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 	case *ast.SelectorExpr:
 		id := fn.Sel
 
-		if clit, ok := fn.X.(*ast.CompositeLit); ok {
+		switch clit := fn.X.(type) {
+		case *ast.CompositeLit:
 			if len(clit.Elts) == 0 {
 				return isFuncSafe(pass, id) // If we have an empty composite literal, then the selector has to be a method.
 			}
@@ -207,9 +212,33 @@ func isFuncSafe(pass *analysis.Pass, node ast.Node) bool {
 				}
 
 				return isFuncSafe(pass, id)
+			// TODO: handle slices and maps
 			default:
 				fmt.Printf("Unhandled composite literal declaration %T\n", clit.Type)
 			}
+		case *ast.CallExpr:
+			tClitFn, ok := pass.TypesInfo.TypeOf(clit.Fun).(*types.Named)
+			if !ok {
+				// TODO: try to get this line to print
+				fmt.Printf("Call expression in composite literal has unexpected type: %q, want:*types.Named, got: %T\n", clit.Fun, pass.TypesInfo.TypeOf(clit.Fun))
+				return isFuncSafe(pass, id)
+			}
+
+			switch tClitFn.Underlying().(type) {
+			case *types.Interface:
+				fmt.Printf("TODO: interface checking selector: %s, %+v, %T\n", id, clit.Args[0], clit.Args[0])
+				// TODO: We need to get the underlying type of the interface by analyzing `clit.Args`
+				// At the start, we can do a quick check to get the type only if a struct is passed in
+				// myVar:= myStruct{}; (f(myVar))
+				// i.e. . no chained function calls. Later, can try to handle interface being passed in as well
+				return isFuncSafe(pass, id)
+			default:
+				fmt.Printf("Unhandled call expression before selector: %q, %T\n", tClitFn.Underlying(), tClitFn.Underlying())
+			}
+		case *ast.Ident:
+			return isFuncSafe(pass, id)
+		default:
+			fmt.Printf("Unknown CompositeLit type: %T\n", clit)
 		}
 
 		return isFuncSafe(pass, id)
@@ -249,45 +278,6 @@ func getMatchedFieldIndex(st *types.Struct, id *ast.Ident) (int, bool) {
 	return -1, false
 }
 
-// TODO: the point of this function is to get the function that was called by Goroutine. If this isn't
-// working I can manually handle these cases as well.
-
-// goStmtFunc returns the ast.Node of a call expression
-// that was invoked as a go statement. Currently, only
-// function literals declared in the same function, and
-// static calls within the same package are supported.
-//
-// Modified https://cs.opensource.google/go/x/tools/+/refs/tags/v0.13.0:go/analysis/passes/testinggoroutine/testinggoroutine.go;l=118;drc=255eeebbce77653b04b0d73a4d5f9436b38c8fdd
-func goStmtFun(pass *analysis.Pass, goStmt *ast.GoStmt) ast.Node {
-	switch fun := goStmt.Call.Fun.(type) {
-	case *ast.IndexExpr, *ast.IndexListExpr:
-		x := getIDFromIndexParam(fun)
-		id, _ := x.(*ast.Ident)
-		if id == nil {
-			break
-		}
-
-		if id.Obj == nil {
-			break
-		}
-
-		if funDecl, ok := id.Obj.Decl.(ast.Node); ok {
-			return funDecl
-		}
-	case *ast.Ident:
-		if fun.Obj == nil {
-			break
-		}
-		if funDecl, ok := fun.Obj.Decl.(ast.Node); ok {
-			return funDecl
-		}
-	case *ast.FuncLit:
-		return goStmt.Call.Fun
-	}
-
-	return goStmt.Call
-}
-
 func getIDFromIndexParam(n ast.Node) ast.Expr {
 	switch e := n.(type) {
 	case *ast.IndexExpr:
@@ -297,6 +287,20 @@ func getIDFromIndexParam(n ast.Node) ast.Expr {
 	default:
 		return nil
 	}
+}
+
+// getFunctionOrigin gets the canonical Func i.e. the Func object recorded in Info.Defs.
+func getFunctionOrigin(tFn types.Object) (types.Object, bool) {
+	cur, ok := tFn.(*types.Func)
+	if !ok {
+		return tFn, false
+	}
+
+	for cur.Origin() != nil && cur.Origin() != cur {
+		cur = cur.Origin()
+	}
+
+	return cur, true
 }
 
 type isSafeFact struct{} // =>  *types.Func f is a function that won't panic

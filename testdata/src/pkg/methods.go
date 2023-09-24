@@ -22,6 +22,14 @@ func (m myStruct) unsafe() {
 	Println("This should fail because it has no recover")
 }
 
+func (m myStruct) clone() myStruct {
+	return m
+}
+
+func newMyStruct() myStruct {
+	return myStruct{}
+}
+
 // safeMethod is a function that has a method with a recover.
 func safeMethod() {
 	go myStruct{}.safe()
