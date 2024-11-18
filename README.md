@@ -34,6 +34,11 @@ func CtxGo(ctx context.Context, f func()) {
 }
 ```
 
+TODO:
+Explain correct way to use linter.
+The way to fix the linter warning should be to use the wrapper function and that can part of the error message
+	e.g. if there is atleast one wrapper function, you can say please use the "functionName(s)" to start Goroutine, since a panic can kill your application
+
 
 TODOs
 Allow assignment settings
@@ -45,6 +50,7 @@ Allow assignment settings
 
 
 Some more TODO
+
 - cast literal into type to run method
 	e.g `go customString(s).safe()`
 - use chatGPT to generate some random Go code that has some Go routines
